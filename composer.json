@@ -1,0 +1,12 @@
+{
+    "name": "k-komarov/ml-epay",
+    "description": "MLePay Api client",
+    "authors": [
+        {
+            "name": "Kirill Komarov",
+            "email": "kirill.komarov@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {}
+}
