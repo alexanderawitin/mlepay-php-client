@@ -8,7 +8,8 @@
  */
 namespace KKomarov\MLePay;
 
-use GuzzleHttp\Client;
+use GuzzleHttp\Client as GuzzleHttpClient;
+use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Psr7\Request;
 use KKomarov\MLePay\Dto\Notification;
 use KKomarov\MLePay\Dto\Transaction;
@@ -24,14 +25,9 @@ use Psr\Log\LoggerInterface;
  * @author    Kirill Komarov <kirill.komarov@gmail.com>
  * @link      https://github.com/k-komarov/mlepay-php-client
  */
-class HttpClient implements ClientInterface
+class Client implements ClientInterface
 {
     use LoggerAwareTrait;
-
-    /**
-     * @var Client
-     */
-    protected $guzzleHttpClient;
 
     /**
      * @var string
@@ -41,44 +37,45 @@ class HttpClient implements ClientInterface
     /**
      * HttpClient constructor.
      *
-     * @param string          $secretKey        Secret key
-     * @param Client          $guzzleHttpClient Guzzle http client
-     * @param LoggerInterface $logger           Logger
+     * @param string          $secretKey Secret key
+     * @param LoggerInterface $logger    Logger
      */
-    public function __construct($secretKey, Client $guzzleHttpClient, LoggerInterface $logger)
+    public function __construct($secretKey, LoggerInterface $logger)
     {
-        $this->secretKey        = $secretKey;
-        $this->guzzleHttpClient = $guzzleHttpClient;
+        $this->secretKey = $secretKey;
         $this->setLogger($logger);
     }
 
     /**
      * Creates a transaction
      *
-     * @param string  $recieverEmail The receiver email is your merchant email, this is unique to every account and is provided in the Merchant Profile page.
-     * @param string  $senderEmail   The email address of the customer or buyer.
-     * @param string  $senderName    The name of the customer or buyer.
-     * @param string  $senderPhone   The mobile or landline phone number of the customer or buyer.
-     * @param string  $senderAddress The address of the customer or buyer.
-     * @param integer $amount        The amount in centavos to be paid by the customer or buyer.
-     * @param string  $currency      The currency of the transaction. Currently, only "PHP" is supported.
-     * @param string  $nonce         A random unique 16-character string to identify this request. This is used as a security measure.
-     * @param integer $timestamp     The UNIX Timestamp of the current date and time. This is used as a security measure.
-     * @param int     $expiry        The UNIX Timestamp of the date and time the transaction is set to expire. This is useful for transactions with a set "deadline" or "cutoff" for payments to be completed.
-     * @param string  $payload       Custom transaction details. When the status of a transaction is changed, the payload will also be passed along with the other transaction details as a notification to the webhook. This will NOT be shown to the customer or buyer.
-     * @param string  $description   The description of the transaction. This will be shown to the buyer or customer.
+     * @param GuzzleHttpClient $guzzleClient  Guzzle http client
+     * @param string           $recieverEmail The receiver email is your merchant email, this is unique to every account and is provided in the Merchant Profile page.
+     * @param string           $senderEmail   The email address of the customer or buyer.
+     * @param string           $senderName    The name of the customer or buyer.
+     * @param string           $senderPhone   The mobile or landline phone number of the customer or buyer.
+     * @param string           $senderAddress The address of the customer or buyer.
+     * @param integer          $amount        The amount in centavos to be paid by the customer or buyer.
+     * @param string           $currency      The currency of the transaction. Currently, only "PHP" is supported.
+     * @param string           $nonce         A random unique 16-character string to identify this request. This is used as a security measure.
+     * @param integer          $timestamp     The UNIX Timestamp of the current date and time. This is used as a security measure.
+     * @param int              $expiry        The UNIX Timestamp of the date and time the transaction is set to expire. This is useful for transactions with a set "deadline" or "cutoff" for payments to be completed.
+     * @param string           $payload       Custom transaction details. When the status of a transaction is changed, the payload will also be passed along with the other transaction details as a notification to the webhook. This will NOT be shown to the customer or buyer.
+     * @param string           $description   The description of the transaction. This will be shown to the buyer or customer.
      *
      * @return Transaction
-     * @throws \Exception
+     * @throws TransactionException
+     * @throws \RuntimeException
      */
     public function createTransaction(
+        GuzzleHttpClient $guzzleClient,
         $recieverEmail,
         $senderEmail,
         $senderName,
         $senderPhone,
         $senderAddress,
         $amount,
-        $currency = 'PHP',
+        $currency = self::CURRENCY_PHP,
         $nonce,
         $timestamp,
         $expiry = 0,
@@ -102,7 +99,7 @@ class HttpClient implements ClientInterface
         ]);
 
         try {
-            $response        = $this->guzzleHttpClient->post(
+            $response        = $guzzleClient->post(
                 self::CREATE_TRANSACTION_URL,
                 [
                     'body'    => $requestBody,
@@ -125,7 +122,7 @@ class HttpClient implements ClientInterface
                 $responseJson['transaction']['payload'],
                 $responseJson['transaction']['code'],
                 $responseJson['transaction']['currency']);
-        } catch (\HttpRequestException $e) {
+        } catch (RequestException $e) {
             $this->logger->error('Create transaction response:', [
                 'message' => $e->getMessage()
             ]);

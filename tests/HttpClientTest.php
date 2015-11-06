@@ -9,14 +9,17 @@
 
 namespace KKomarov\MLePay\HttpClient;
 
-use GuzzleHttp\Client;
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use GuzzleHttp\Client as GuzzleHttpClient;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use KKomarov\MLePay\ClientInterface;
-use KKomarov\MLePay\HttpClient;
+use KKomarov\MLePay\Exceptions\TransactionException;
+use KKomarov\MLePay\Client;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
 
@@ -29,46 +32,66 @@ class HttpClientTest extends \PHPUnit_Framework_TestCase
 
     protected function setUp()
     {
-        // create guzzle mock
-        $mock = new MockHandler([
-            new Response(200, [], '{"content": {}, "transaction": {"currency": "PHP", "amount": 10000, "code": "EPAY-TEST-TGFLNHCSSNTH", "payload": "custom payload", "expiry": 1446681556}, "code": 200, "response": "SUCCESS", "description": "Transaction Generated."}'),
-        ]);
-
-        $handler          = HandlerStack::create($mock);
-        $guzzleClientMock = new Client(['handler' => $handler]);
         // create a log channel
-        $logger = new Logger('MLePay');
-        $logger->pushHandler(new StreamHandler(__DIR__ . '/../artifacts/log'));
+        $logger = new Logger('log');
+        $logger->pushHandler(new StreamHandler(__DIR__ . '/../artifacts/main.log'));
 
-        $this->httpClient = new HttpClient(
+        $this->httpClient = new Client(
             'secret key',
-            $guzzleClientMock,
             $logger
         );
     }
 
+    public function test_createTransactionFail()
+    {
+        // create guzzle mock
+        $mockHandler   = new MockHandler([
+            new RequestException('Error', new Request('method', 'url'), new Response(TransactionException::ERROR))
+        ]);
+        $errorMessages = TransactionException::getErrorMessages();
+        self::setExpectedException('\KKomarov\MLePay\Exceptions\TransactionException', $errorMessages[TransactionException::ERROR]);
+        $this->createTransaction($mockHandler);
+    }
 
     public function test_createTransaction()
     {
-        $transaction = $this->httpClient->createTransaction(
-            'test@example.com',
-            'juan@example.com',
+        // create guzzle mock
+        $mockHandler = new MockHandler([
+            new Response(200, [], '{"content": {}, "transaction": {"currency": "PHP", "amount": 10000, "code": "EPAY-TEST-TGFLNHCSSNTH", "payload": "custom payload", "expiry": 1446681556}, "code": 200, "response": "SUCCESS", "description": "Transaction Generated."}'),
+
+        ]);
+        $transaction = $this->createTransaction($mockHandler);
+
+        self::assertInstanceOf('\KKomarov\MLePay\Dto\Transaction', $transaction);
+        self::assertEquals(10000, $transaction->getAmount());
+        self::assertEquals(ClientInterface::CURRENCY_PHP, $transaction->getCurrency());
+        self::assertNotEmpty($transaction->getCode());
+        self::assertEquals('custom payload', $transaction->getPayload());
+    }
+
+    /**
+     * @param MockHandler $mockHandler
+     *
+     * @return \KKomarov\MLePay\Dto\Transaction
+     * @throws TransactionException
+     */
+    private function createTransaction($mockHandler)
+    {
+        return $this->httpClient->createTransaction(
+            new GuzzleHttpClient(['handler' => HandlerStack::create($mockHandler)]),
+            'reciever@example.com',
+            'sender@example.com',
             'Sender name',
             'Sender phone',
             'Sender address',
             10000,
             ClientInterface::CURRENCY_PHP,
-            substr(md5(time()), 0, 16),
-            time(),
-            time() + 3600,
+            'nonce',
+            123456,
+            1234567,
             'custom payload',
             'description'
         );
-
-        self::assertEquals(10000, $transaction->getAmount());
-        self::assertEquals(ClientInterface::CURRENCY_PHP, $transaction->getCurrency());
-        self::assertNotEmpty($transaction->getCode());
-        self::assertEquals('custom payload', $transaction->getPayload());
     }
 
 

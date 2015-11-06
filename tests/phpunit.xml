@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<phpunit>
+    <logging>
+        <log type="coverage-html" target="../artifacts/coverage/" />
+        <log type="testdox-text" target="../artifacts/phpunit.log"/>
+    </logging>
+    <filter>
+        <blacklist>
+            <directory>../vendor/</directory>
+            <directory>.</directory>
+        </blacklist>
+        <whitelist>
+            <directory>../src</directory>
+        </whitelist>
+    </filter>
+    <testsuites>
+        <testsuite name="MLePay Tests">
+            <directory>./</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>

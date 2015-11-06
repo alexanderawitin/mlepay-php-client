@@ -4,10 +4,7 @@ up:
 	composer update
 
 test:
-	vendor/bin/phpunit tests --colors=auto
-
-coverage:
-	vendor/bin/phpunit --coverage-html=artifacts/coverage --colors=auto tests
+	vendor/bin/phpunit --configuration tests/phpunit.xml --colors=auto
 
 view-coverage:
 	open artifacts/coverage/index.html
